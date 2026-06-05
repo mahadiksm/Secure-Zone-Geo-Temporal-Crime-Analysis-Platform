@@ -1,0 +1,488 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Overall Crime Intelligence</title>
+
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<style>
+body{background:#0b0f1a;color:white;font-family:Segoe UI;margin:0;}
+h1{text-align:center;color:#ff3c3c;padding:10px;margin:0;}
+
+.controls{text-align:center;margin:5px 0;}
+select,button{
+padding:10px;margin:3px;background:#111;color:white;border:1px solid #444;
+}
+button{background:red;cursor:pointer;}
+
+.cards{
+display:grid;
+grid-template-columns:repeat(3,1fr);
+gap:8px;
+padding:8px;
+margin:0;
+}
+
+.card{
+background:#111827;
+padding:15px;
+text-align:center;
+border-radius:8px;
+}
+
+.graph{
+background:#111827;
+height:380px;
+border-radius:8px;
+margin:0;
+}
+
+.grid{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:8px;
+padding:8px;
+margin:0;
+}
+
+table{
+width:95%;
+margin:5px auto;
+border-collapse:collapse;
+background:#111827;
+color:white;
+}
+
+th,td{
+padding:8px;
+border:1px solid #333;
+text-align:center;
+}
+
+#map{
+height:380px;
+margin:5px 0;
+border-radius:8px;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Overall Crime Intelligence</h1>
+
+<div class="controls">
+<select id="intensity">
+<option value="all">All</option>
+<option value="low">Low 🟢</option>
+<option value="moderate">Moderate 🟡</option>
+<option value="high">High 🔴</option>
+</select>
+<button onclick="applyIntensity()">Search</button>
+</div>
+
+<div class="cards">
+<div class="card">High 🔴<br><span id="high"></span><br><small id="highLoc"></small></div>
+<div class="card">Moderate 🟡<br><span id="mid"></span><br><small id="midLoc"></small></div>
+<div class="card">Low 🟢<br><span id="low"></span><br><small id="lowLoc"></small></div>
+</div>
+
+<div id="crimeTypeStacked" class="graph"></div>
+
+<div id="map"></div>
+
+<div id="mainGraph" class="graph"></div>
+
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Location</th>
+<th>Crime Type</th>
+<th>Year</th>
+<th>Count</th>
+<th>Intensity</th>
+</tr>
+</thead>
+<tbody id="tableBody"></tbody>
+</table>
+
+<div class="grid">
+
+<div id="bar" class="graph"></div>
+<div id="hbar" class="graph"></div>
+
+<div id="pie" class="graph"></div>
+<div id="donut" class="graph"></div>
+
+<div id="scatter" class="graph"></div>
+<div id="bubble" class="graph"></div>
+
+<div id="hist" class="graph"></div>
+<div id="box" class="graph"></div>
+
+<div id="area" class="graph"></div>
+<div id="line" class="graph"></div>
+
+</div>
+
+<button onclick="window.location.href='Time_Analysis.html'"
+style="display:block;margin:10px auto;padding:12px;background:green;color:white;border:none;">
+Next →
+</button>
+
+<script>
+
+let fullData=[];
+let map, userMarker, markersLayer;
+
+/* FETCH */
+async function getData(){
+let res=await fetch("http://localhost/Chronology/fetch_data.php")
+return await res.json();
+}
+
+/* INTENSITY */
+function calculateIntensity(locData){
+let max=Math.max(...Object.values(locData));
+let result={};
+
+for(let l in locData){
+let p=(locData[l]/max)*100;
+
+if(p<=30) result[l]="low";
+else if(p<=60) result[l]="moderate";
+else result[l]="high";
+}
+return result;
+}
+
+/* MAP INIT */
+function initMap(){
+map = L.map('map').setView([18.5204,73.8567],10);
+
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
+maxZoom:19
+}).addTo(map);
+
+setTimeout(()=>map.invalidateSize(),500);
+
+markersLayer = L.layerGroup().addTo(map);
+
+if(navigator.geolocation){
+navigator.geolocation.getCurrentPosition(pos=>{
+let lat=pos.coords.latitude;
+let lon=pos.coords.longitude;
+
+map.setView([lat,lon],10);
+
+userMarker = L.marker([lat,lon]).addTo(map)
+.bindPopup("Your Location").openPopup();
+});
+}
+}
+
+/* UPDATE MARKERS */
+function updateMap(intensityMap,locations){
+
+markersLayer.clearLayers();
+
+let coords = {
+"pune":[18.5204,73.8567],
+"mumbai":[19.0760,72.8777],
+"sangli":[16.8524,74.5815],
+"satara":[17.6805,74.0183],
+"raigad":[18.5158,73.1820]
+};
+
+locations.forEach(l=>{
+
+let lat = coords[l]?.[0];
+let lon = coords[l]?.[1];
+if(!lat || !lon) return;
+
+let color = intensityMap[l]=="high"?"red":
+intensityMap[l]=="moderate"?"yellow":"green";
+
+L.circleMarker([lat,lon],{
+radius:8,
+color:color,
+fillColor:color,
+fillOpacity:0.8
+})
+.addTo(markersLayer)
+.bindPopup(l + " (" + (intensityMap[l] || "low") + ")");
+
+});
+
+}
+
+/* LOAD FUNCTION */
+function load(data,filter="all"){
+
+let locData={}, typeMap={};
+
+data.forEach(c=>{
+let l=c.location.toLowerCase();
+let v=Number(c.crime_count);
+
+locData[l]=(locData[l]||0)+v;
+
+if(!typeMap[c.crime_type]) typeMap[c.crime_type]={};
+typeMap[c.crime_type][l]=(typeMap[c.crime_type][l]||0)+v;
+});
+
+let intensityMap=calculateIntensity(locData);
+
+/* ADDED LINES */
+let highList=[], midList=[], lowList=[];
+Object.keys(intensityMap).forEach(l=>{
+if(intensityMap[l]=="high") highList.push(l);
+else if(intensityMap[l]=="moderate") midList.push(l);
+else lowList.push(l);
+});
+highLoc.innerText = highList.join(", ");
+midLoc.innerText = midList.join(", ");
+lowLoc.innerText = lowList.join(", ");
+
+/* FILTER */
+let locations=Object.keys(locData).filter(l=>{
+return filter==="all" || intensityMap[l]===filter;
+});
+
+let values=locations.map(l=>locData[l]);
+
+/* UPDATE MAP */
+updateMap(intensityMap,locations);
+
+/* COLORS */
+let colors=[
+"#ff4d4d","#ffa600","#ffff66","#66ff66",
+"#00ccff","#cc66ff","#ff66cc","#00ffaa"
+];
+
+/* STACKED GRAPH */
+let stackedTraces = [];
+Object.keys(typeMap).forEach((type,i)=>{
+stackedTraces.push({
+x:locations,
+y:locations.map(l=>typeMap[type][l]||0),
+name:type,
+type:"bar"
+});
+});
+Plotly.newPlot("crimeTypeStacked", stackedTraces, {
+barmode:"stack",
+title:"Crime Type Distribution per Location",
+xaxis:{title:"Location"},
+yaxis:{title:"Crime Count"},
+paper_bgcolor:"#111827",
+plot_bgcolor:"#111827",
+font:{color:"white"}
+});
+
+/* STACKED BAR */
+let traces=[];
+Object.keys(typeMap).forEach((t,i)=>{
+traces.push({
+x:locations,
+y:locations.map(l=>typeMap[t][l]||0),
+name:t,
+type:"bar",
+marker:{color:colors[i%colors.length]}
+});
+});
+
+Plotly.newPlot("bar",traces,{
+barmode:"stack",
+title:"Crime Count by Location (Stacked Bar – color = crime type)",
+xaxis:{title:"Location"},
+yaxis:{title:"Crime Count"},
+paper_bgcolor:"#111827",
+plot_bgcolor:"#111827",
+font:{color:"white"}
+});
+
+/* HORIZONTAL STACKED */
+let htraces=[];
+Object.keys(typeMap).forEach((t,i)=>{
+htraces.push({
+y:locations,
+x:locations.map(l=>typeMap[t][l]||0),
+name:t,
+type:"bar",
+orientation:"h",
+marker:{color:colors[i%colors.length]}
+});
+});
+
+Plotly.newPlot("hbar",htraces,{
+barmode:"stack",
+title:"Horizontal Crime Comparison (color = crime type)",
+xaxis:{title:"Crime Count"},
+yaxis:{title:"Location"},
+paper_bgcolor:"#111827",
+plot_bgcolor:"#111827",
+font:{color:"white"}
+});
+
+/* PIE */
+Plotly.newPlot("pie",[{
+labels:locations,
+values:values,
+type:"pie"
+}],{
+title:"Crime Distribution (city share)",
+paper_bgcolor:"#111827",
+font:{color:"white"}
+});
+
+/* DONUT */
+Plotly.newPlot("donut",[{
+labels:locations,
+values:values,
+hole:0.4,
+type:"pie"
+}],{
+title:"Crime Distribution (donut view)",
+paper_bgcolor:"#111827",
+font:{color:"white"}
+});
+
+/* SCATTER */
+Plotly.newPlot("scatter",[{
+x:locations,
+y:values,
+mode:"markers",
+marker:{size:12,color:colors}
+}],{
+title:"Crime Pattern (Scatter: Location vs Count)",
+xaxis:{title:"Location"},
+yaxis:{title:"Crime Count"},
+paper_bgcolor:"#111827",
+plot_bgcolor:"#111827",
+font:{color:"white"}
+});
+
+/* BUBBLE */
+Plotly.newPlot("bubble",[{
+x:locations,
+y:values,
+mode:"markers",
+marker:{size:values.map(v=>v*5),color:colors}
+}],{
+title:"Crime Intensity (Bubble size shows volume)",
+xaxis:{title:"Location"},
+yaxis:{title:"Crime Count"},
+paper_bgcolor:"#111827",
+plot_bgcolor:"#111827",
+font:{color:"white"}
+});
+
+/* HISTOGRAM */
+Plotly.newPlot("hist",[{
+x:values,
+type:"histogram",
+marker:{color:"#ff6666"}
+}],{
+title:"Crime Frequency Distribution (Histogram)",
+xaxis:{title:"Crime Count Range"},
+yaxis:{title:"Number of Locations"},
+paper_bgcolor:"#111827",
+plot_bgcolor:"#111827",
+font:{color:"white"}
+});
+
+/* BOX */
+let boxData=[];
+locations.forEach(l=>{
+boxData.push({
+y:data.filter(c=>c.location.toLowerCase()==l).map(c=>c.crime_count),
+name:l,
+type:"box"
+});
+});
+
+Plotly.newPlot("box",boxData,{
+title:"Crime Spread (Box Plot per Location)",
+yaxis:{title:"Crime Count"},
+paper_bgcolor:"#111827",
+plot_bgcolor:"#111827",
+font:{color:"white"}
+});
+
+/* AREA */
+Plotly.newPlot("area",[{
+x:locations,
+y:values,
+fill:"tozeroy",
+type:"scatter",
+line:{color:"#00ccff"}
+}],{
+title:"Crime Trend (Area View)",
+xaxis:{title:"Location"},
+yaxis:{title:"Crime Count"},
+paper_bgcolor:"#111827",
+plot_bgcolor:"#111827",
+font:{color:"white"}
+});
+
+/* LINE */
+Plotly.newPlot("line",[{
+x:locations,
+y:values,
+type:"scatter",
+mode:"lines+markers",
+line:{color:"#ffcc00"}
+}],{
+title:"Crime Trend (Line Graph)",
+xaxis:{title:"Location"},
+yaxis:{title:"Crime Count"},
+paper_bgcolor:"#111827",
+plot_bgcolor:"#111827",
+font:{color:"white"}
+});
+
+/* TABLE */
+let html="";
+data.forEach(c=>{
+let l=c.location.toLowerCase();
+let level=intensityMap[l];
+
+if(filter!=="all" && level!==filter) return;
+
+let col=level=="high"?"red":level=="moderate"?"yellow":"green";
+
+html+=`<tr>
+<td>${c.crime_id||c.id}</td>
+<td>${c.location}</td>
+<td>${c.crime_type}</td>
+<td>${c.year}</td>
+<td>${c.crime_count}</td>
+<td style="color:${col}">${level}</td>
+</tr>`;
+});
+tableBody.innerHTML=html;
+
+}
+
+/* APPLY */
+function applyIntensity(){
+load(fullData,intensity.value);
+}
+
+/* INIT */
+async function init(){
+initMap();
+fullData=await getData();
+load(fullData);
+}
+init();
+
+</script>
+
+</body>
+</html>

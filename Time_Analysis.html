@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Time Analysis Dashboard</title>
+
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+<style>
+
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:Segoe UI;
+}
+
+body{
+background:#0b0f1a;
+color:white;
+}
+
+h1{
+text-align:center;
+padding:20px;
+color:#ff3c3c;
+}
+
+.search{
+text-align:center;
+margin:20px;
+}
+
+input{
+padding:12px;
+background:#111;
+color:white;
+border:1px solid #444;
+border-radius:6px;
+width:220px;
+margin:5px;
+}
+
+button{
+padding:12px 20px;
+background:red;
+border:none;
+color:white;
+cursor:pointer;
+margin-left:10px;
+border-radius:6px;
+}
+
+.cards{
+display:grid;
+grid-template-columns:repeat(3,1fr);
+gap:15px;
+padding:15px;
+}
+
+.card{
+background:#111827;
+padding:25px;
+text-align:center;
+border-radius:10px;
+font-size:18px;
+}
+
+.grid{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:15px;
+padding:15px;
+}
+
+.graph{
+background:#111827;
+height:420px;
+border-radius:10px;
+}
+
+.low{
+color:#00ff66;
+font-weight:bold;
+}
+
+.moderate{
+color:yellow;
+font-weight:bold;
+}
+
+.high{
+color:red;
+font-weight:bold;
+}
+
+</style>
+</head>
+
+<body>
+
+<h1>Crime Time Intelligence Dashboard</h1>
+
+<div class="search">
+
+<input type="time" id="startTime">
+
+<input type="time" id="endTime">
+
+<button onclick="analyze()">
+Analyze Time Range
+</button>
+
+</div>
+
+<div class="cards">
+
+<div class="card">
+Selected Time Range<br><br>
+<span id="time">-</span>
+</div>
+
+<div class="card">
+Crime Intensity<br><br>
+<span id="intensity">-</span>
+</div>
+
+<div class="card">
+Top Location<br><br>
+<span id="location">-</span>
+</div>
+
+</div>
+
+<div class="grid">
+
+<div id="bar" class="graph"></div>
+<div id="hbar" class="graph"></div>
+<div id="line" class="graph"></div>
+<div id="area" class="graph"></div>
+<div id="scatter" class="graph"></div>
+<div id="bubble" class="graph"></div>
+<div id="hist" class="graph"></div>
+<div id="box" class="graph"></div>
+<div id="pie" class="graph"></div>
+<div id="donut" class="graph"></div>
+
+</div>
+
+<div style="text-align:center;margin:20px;">
+
+<button onclick="goNext()" style="
+padding:12px 20px;
+background:green;
+border:none;
+color:white;
+border-radius:6px;
+cursor:pointer;
+font-size:16px;">
+
+Next → Overall Dashboard
+
+</button>
+
+</div>
+
+<script>
+
+/* FETCH DATA */
+
+async function getData(){
+
+let res=await fetch("http://localhost/Chronology/fetch_data.php");
+
+return await res.json();
+
+}
+
+/* TIME TO MINUTES */
+
+function timeToMinutes(t){
+
+if(!t) return 0;
+
+let parts=t.split(":");
+
+return Number(parts[0])*60 + Number(parts[1]);
+
+}
+
+/* INTENSITY */
+
+function getIntensity(percent){
+
+if(percent < 30){
+
+return {
+text:"LOW 🟢",
+class:"low"
+};
+
+}
+
+else if(percent >=30 && percent <=60){
+
+return {
+text:"MODERATE 🟡",
+class:"moderate"
+};
+
+}
+
+else{
+
+return {
+text:"HIGH 🔴",
+class:"high"
+};
+
+}
+
+}
+
+/* MAIN */
+
+async function analyze(){
+
+let start=document.getElementById("startTime").value;
+
+let end=document.getElementById("endTime").value;
+
+if(!start || !end){
+
+alert("Select Start Time & End Time");
+
+return;
+
+}
+
+let startMin=timeToMinutes(start);
+
+let endMin=timeToMinutes(end);
+
+let data=await getData();
+
+/* FILTER TIME RANGE */
+
+let filtered=data.filter(c=>{
+
+let st=timeToMinutes(c.start_time);
+
+let et=timeToMinutes(c.end_time);
+
+return st>=startMin && et<=endMin;
+
+});
+
+if(filtered.length===0){
+
+alert("No Crime Found In Selected Time Range");
+
+return;
+
+}
+
+/* MAPS */
+
+let locMap={};
+
+let typeMap={};
+
+let timeMap={};
+
+filtered.forEach(c=>{
+
+let loc=c.location || "Unknown";
+
+let type=c.crime_type || "Unknown";
+
+let t=`${c.start_time} - ${c.end_time}`;
+
+let count=Number(c.crime_count || 0);
+
+locMap[loc]=(locMap[loc]||0)+count;
+
+typeMap[type]=(typeMap[type]||0)+count;
+
+timeMap[t]=(timeMap[t]||0)+count;
+
+});
+
+/* LOCATION */
+
+let bestLoc=Object.keys(locMap)
+.reduce((a,b)=>locMap[a]>locMap[b]?a:b);
+
+document.getElementById("location").innerText=bestLoc;
+
+/* TIME */
+
+document.getElementById("time").innerText=
+start+" To "+end;
+
+/* INTENSITY */
+
+let maxCrime=Math.max(...Object.values(locMap));
+
+let totalCrime=Object.values(locMap)
+.reduce((a,b)=>a+b,0);
+
+let percent=((maxCrime/totalCrime)*100).toFixed(2);
+
+let level=getIntensity(percent);
+
+document.getElementById("intensity").innerHTML=
+`<span class="${level.class}">
+${level.text} (${percent}%)
+</span>`;
+
+/* GRAPH DATA */
+
+let labels=Object.keys(typeMap);
+
+let values=Object.values(typeMap);
+
+let locLabels=Object.keys(locMap);
+
+let locValues=Object.values(locMap);
+
+let timeLabels=Object.keys(timeMap);
+
+let timeValues=Object.values(timeMap);
+
+let colors=[
+"#ff0000",
+"#00ff00",
+"#ffff00",
+"#00ffff",
+"#ff00ff",
+"#ffa500",
+"#00ccff",
+"#ff6666",
+"#66ff66",
+"#cc66ff"
+];
+
+/* COMMON LAYOUT */
+
+let common={
+
+paper_bgcolor:"#111827",
+
+plot_bgcolor:"#111827",
+
+font:{
+color:"white",
+size:14
+},
+
+xaxis:{
+gridcolor:"#444"
+},
+
+yaxis:{
+gridcolor:"#444"
+}
+
+};
+
+/* BAR */
+
+Plotly.newPlot("bar",[{
+
+x:labels,
+
+y:values,
+
+type:"bar",
+
+text:values,
+
+textposition:"outside",
+
+marker:{
+color:colors
+}
+
+}],{
+
+...common,
+
+title:"Crime Type vs Crime Count"
+
+});
+
+/* HBAR */
+
+Plotly.newPlot("hbar",[{
+
+y:labels,
+
+x:values,
+
+type:"bar",
+
+orientation:"h",
+
+text:values,
+
+marker:{
+color:colors
+}
+
+}],{
+
+...common,
+
+title:"Horizontal Crime Comparison"
+
+});
+
+/* LINE */
+
+Plotly.newPlot("line",[{
+
+x:timeLabels,
+
+y:timeValues,
+
+mode:"lines+markers+text",
+
+text:timeValues,
+
+textposition:"top center",
+
+line:{
+color:"#00ffff",
+width:4
+},
+
+marker:{
+
+size:14,
+
+color:colors,
+
+line:{
+color:"#fff",
+width:2
+}
+
+}
+
+}],{
+
+...common,
+
+title:"Crime Trend By Time Range"
+
+});
+
+/* AREA */
+
+Plotly.newPlot("area",[{
+
+x:timeLabels,
+
+y:timeValues,
+
+fill:"tozeroy",
+
+mode:"lines+markers",
+
+line:{
+color:"#00ff99",
+width:4
+},
+
+marker:{
+size:12,
+color:colors
+}
+
+}],{
+
+...common,
+
+title:"Crime Density Area Graph"
+
+});
+
+/* SCATTER */
+
+Plotly.newPlot("scatter",[{
+
+x:locLabels,
+
+y:locValues,
+
+mode:"markers+text",
+
+text:locValues,
+
+textposition:"top center",
+
+marker:{
+
+size:22,
+
+color:colors,
+
+opacity:0.9,
+
+line:{
+color:"#fff",
+width:2
+}
+
+}
+
+}],{
+
+...common,
+
+title:"Scatter Plot Crime Distribution"
+
+});
+
+/* BUBBLE */
+
+Plotly.newPlot("bubble",[{
+
+x:locLabels,
+
+y:locValues,
+
+mode:"markers+text",
+
+text:locValues,
+
+textposition:"top center",
+
+marker:{
+
+size:locValues.map(v=>v*5),
+
+color:colors,
+
+opacity:0.8,
+
+line:{
+color:"#fff",
+width:2
+}
+
+}
+
+}],{
+
+...common,
+
+title:"Bubble Chart Crime Intensity"
+
+});
+
+/* HISTOGRAM */
+
+Plotly.newPlot("hist",[{
+
+x:locValues,
+
+type:"histogram",
+
+marker:{
+color:"#00ccff"
+}
+
+}],{
+
+...common,
+
+title:"Crime Frequency Histogram"
+
+});
+
+/* BOX */
+
+Plotly.newPlot("box",[{
+
+y:locValues,
+
+type:"box",
+
+name:"Crime Count",
+
+boxpoints:"all",
+
+jitter:0.5,
+
+pointpos:0,
+
+marker:{
+
+size:10,
+
+color:colors
+
+},
+
+line:{
+color:"#ffcc00"
+}
+
+}],{
+
+...common,
+
+title:"Crime Distribution Box Plot"
+
+});
+
+/* PIE */
+
+Plotly.newPlot("pie",[{
+
+labels:locLabels,
+
+values:locValues,
+
+type:"pie",
+
+textinfo:"label+percent",
+
+marker:{
+colors:colors
+}
+
+}],{
+
+...common,
+
+title:"Location Crime Share"
+
+});
+
+/* DONUT */
+
+Plotly.newPlot("donut",[{
+
+labels:locLabels,
+
+values:locValues,
+
+type:"pie",
+
+hole:0.5,
+
+textinfo:"label+percent",
+
+marker:{
+colors:colors
+}
+
+}],{
+
+...common,
+
+title:"Donut Crime Analysis"
+
+});
+
+}
+
+/* NEXT */
+
+function goNext(){
+
+window.location.href="Overall_Time.html";
+
+}
+
+</script>
+
+</body>
+</html>

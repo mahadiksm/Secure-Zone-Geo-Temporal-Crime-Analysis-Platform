@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Crime Dataset</title>
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Segoe UI;}
+body{
+background:linear-gradient(rgba(0,0,0,0.9),rgba(0,0,0,0.95)),
+url("crime.jpg") no-repeat center/cover;
+color:white;
+min-height:100vh;
+}
+.header{text-align:center;padding:20px;font-size:32px;color:#ff3c3c;}
+.container{width:90%;margin:auto;}
+
+.searchBox{text-align:center;margin-bottom:20px;}
+.searchBox input{
+padding:10px;width:250px;background:#111;color:white;
+border:1px solid #444;border-radius:5px;
+}
+
+button{
+padding:8px 12px;background:red;color:white;
+border:none;cursor:pointer;margin:5px;border-radius:5px;
+}
+button:hover{background:darkred;}
+
+.result{
+display:none;margin:20px auto;padding:20px;width:50%;
+background:rgba(255,255,255,0.05);border-radius:10px;
+}
+
+table{
+width:100%;border-collapse:collapse;margin-top:20px;
+}
+th,td{
+border:1px solid white;padding:10px;text-align:center;
+}
+th{background:red;}
+
+.nextBtn{
+display:block;
+margin:25px auto;
+padding:12px 20px;
+background:green;
+border:none;
+border-radius:6px;
+cursor:pointer;
+font-size:16px;
+}
+.nextBtn:hover{background:darkgreen;}
+
+.editBox{
+display:none;margin:20px auto;padding:20px;width:80%;
+background:rgba(255,255,255,0.05);
+}
+.editBox input{
+padding:8px;margin:5px;background:#111;color:white;
+border:1px solid #444;
+}
+</style>
+
+</head>
+
+<body>
+
+<div class="header">Crime Dataset (From 2020)</div>
+
+<div class="container">
+
+<!-- SEARCH -->
+
+<div class="searchBox">
+<input id="searchId" placeholder="Enter Crime_ID (e.g. C101)">
+<button onclick="searchCrime()">Search</button>
+<button onclick="resetSearch()">Reset</button>
+</div>
+
+<div class="result" id="resultBox"></div>
+
+<!-- TABLE -->
+
+<table id="table"></table>
+
+<!-- ✅ NEXT BUTTON -->
+
+<button class="nextBtn" onclick="goNext()">Next → Location Analysis</button>
+
+<!-- EDIT BOX -->
+
+<div class="editBox" id="editBox">
+<h3>Edit Crime</h3>
+
+<input id="e_id">
+<input id="e_date" type="date">
+<input id="e_day">
+<input id="e_month">
+<input id="e_year">
+
+<br>
+
+Start Time: <input id="e_start" type="time">
+End Time: <input id="e_end" type="time">
+
+<br>
+
+<input id="e_location">
+<input id="e_type">
+<input id="e_count" type="number">
+
+<br>
+
+<button onclick="saveEdit()">Save Changes</button>
+
+</div>
+
+</div>
+
+<script>
+
+let crimes = [];
+let editIndex = -1;
+
+/* LOAD DATA */
+async function loadData(){
+let res = await fetch("fetch_data.php");
+crimes = await res.json();
+
+let table = document.getElementById("table");
+
+table.innerHTML = `
+<tr>
+<th>ID</th>
+<th>Date</th>
+<th>Day</th>
+<th>Month</th>
+<th>Year</th>
+<th>Start Time</th>
+<th>End Time</th>
+<th>Type</th>
+<th>Count</th>
+<th>Location</th>
+<th>Action</th>
+</tr>`;
+
+crimes.forEach((c,i)=>{
+table.innerHTML += `
+<tr>
+<td>${c.crime_id}</td>
+<td>${c.date}</td>
+<td>${c.day}</td>
+<td>${c.month}</td>
+<td>${c.year}</td>
+<td>${c.start_time}</td>
+<td>${c.end_time}</td>
+<td>${c.crime_type}</td>
+<td>${c.crime_count}</td>
+<td>${c.location}</td>
+<td>
+<button onclick="editCrime(${i})">Edit</button>
+<button onclick="deleteCrime(${c.id})">Delete</button>
+</td>
+</tr>`;
+});
+}
+
+/* NEXT PAGE */
+function goNext(){
+window.location.href = "Location_Analysis.html";
+}
+
+/* SEARCH */
+function searchCrime(){
+let id = document.getElementById("searchId").value.trim();
+let box = document.getElementById("resultBox");
+
+let f = crimes.find(c => c.crime_id === id);
+
+if(f){
+box.style.display="block";
+box.innerHTML = `
+<p><b>ID:</b> ${f.crime_id}</p>
+<p><b>Date:</b> ${f.date}</p>
+<p><b>Day:</b> ${f.day}</p>
+<p><b>Month:</b> ${f.month}</p>
+<p><b>Year:</b> ${f.year}</p>
+<p><b>Start Time:</b> ${f.start_time}</p>
+<p><b>End Time:</b> ${f.end_time}</p>
+<p><b>Type:</b> ${f.crime_type}</p>
+<p><b>Count:</b> ${f.crime_count}</p>
+<p><b>Location:</b> ${f.location}</p>`;
+}else{
+box.style.display="block";
+box.innerHTML="No Data Found ❌";
+}
+}
+
+function resetSearch(){
+searchId.value="";
+resultBox.style.display="none";
+}
+
+/* EDIT */
+function editCrime(i){
+editIndex = i;
+let c = crimes[i];
+
+document.getElementById("editBox").style.display="block";
+
+e_id.value = c.crime_id;
+e_date.value = c.date;
+e_day.value = c.day;
+e_month.value = c.month;
+e_year.value = c.year;
+e_start.value = c.start_time;
+e_end.value = c.end_time;
+e_location.value = c.location;
+e_type.value = c.crime_type;
+e_count.value = c.crime_count;
+}
+
+/* SAVE */
+async function saveEdit(){
+let updated = {
+id: crimes[editIndex].id,
+crime_id: e_id.value,
+date: e_date.value,
+day: e_day.value,
+month: e_month.value,
+year: e_year.value,
+start_time: e_start.value,
+end_time: e_end.value,
+location: e_location.value,
+crime_type: e_type.value,
+crime_count: e_count.value
+};
+
+await fetch("add_crime.php",{
+method:"POST",
+headers:{"Content-Type":"application/json"},
+body: JSON.stringify(updated)
+});
+
+alert("Updated Successfully ✅");
+document.getElementById("editBox").style.display="none";
+loadData();
+}
+
+/* DELETE */
+async function deleteCrime(id){
+await fetch("delete_data.php?id="+id);
+alert("Deleted Successfully ✅");
+loadData();
+}
+
+/* LOAD */
+loadData();
+
+</script>
+
+</body>
+</html>

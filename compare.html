@@ -1,0 +1,808 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Compare Crime</title>
+
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+<style>
+
+body{
+background:#0b0f1a;
+color:white;
+font-family:Segoe UI;
+margin:0;
+}
+
+h1{
+text-align:center;
+color:#ff3c3c;
+padding:15px;
+}
+
+.controls{
+text-align:center;
+margin:20px;
+}
+
+input{
+padding:10px;
+width:260px;
+background:#111;
+color:white;
+border:1px solid #444;
+}
+
+button{
+padding:10px 20px;
+background:red;
+color:white;
+border:none;
+cursor:pointer;
+}
+
+.cards{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:10px;
+padding:10px;
+}
+
+.card{
+background:#111827;
+padding:20px;
+text-align:center;
+border-radius:8px;
+}
+
+.data{
+background:#111827;
+margin:10px;
+padding:15px;
+border-radius:8px;
+}
+
+.grid{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:10px;
+padding:10px;
+}
+
+.graph{
+background:#111827;
+height:340px;
+border-radius:8px;
+}
+
+.intensityBox{
+background:#111827;
+margin:10px;
+padding:20px;
+border-radius:8px;
+text-align:center;
+}
+
+.levelBtn{
+padding:12px 25px;
+border:none;
+font-size:18px;
+font-weight:bold;
+border-radius:8px;
+color:white;
+margin-top:10px;
+}
+
+.lowBtn{
+background:green;
+}
+
+.moderateBtn{
+background:gold;
+color:black;
+}
+
+.highBtn{
+background:red;
+}
+
+.next{
+display:block;
+margin:20px auto;
+padding:10px 20px;
+background:green;
+color:white;
+border:none;
+cursor:pointer;
+}
+
+</style>
+</head>
+
+<body>
+
+<h1>Compare Crime by ID</h1>
+
+<div class="controls">
+
+<input id="crimeId" placeholder="Enter Crime ID (C105)">
+
+<button onclick="searchCrime()">
+Search
+</button>
+
+</div>
+
+<div class="cards">
+
+<div class="card">
+
+<h2>Location Intensity</h2>
+
+<div id="loc">-</div>
+
+<br>
+
+<button id="locBtn" class="levelBtn">
+-
+</button>
+
+</div>
+
+<div class="card">
+
+<h2>Time Intensity</h2>
+
+<div id="time">-</div>
+
+<br>
+
+<button id="timeBtn" class="levelBtn">
+-
+</button>
+
+</div>
+
+</div>
+
+<div class="intensityBox">
+
+<h2>Crime Type Intensity</h2>
+
+<div id="crimeIntensityText">
+No Data
+</div>
+
+<button id="crimeIntensityBtn" class="levelBtn">
+-
+</button>
+
+</div>
+
+<div class="data">
+
+<h3>Crime Record</h3>
+
+<div id="record">
+No Data
+</div>
+
+</div>
+
+<div class="grid">
+
+<div id="bar" class="graph"></div>
+<div id="pie" class="graph"></div>
+<div id="donut" class="graph"></div>
+<div id="line" class="graph"></div>
+<div id="area" class="graph"></div>
+<div id="scatter" class="graph"></div>
+<div id="bubble" class="graph"></div>
+<div id="box" class="graph"></div>
+<div id="heat" class="graph"></div>
+<div id="contour" class="graph"></div>
+<div id="hist" class="graph"></div>
+<div id="stack" class="graph"></div>
+
+</div>
+
+<button class="next" onclick="goNext()">
+Next → Overall_analysis
+</button>
+
+<script>
+
+/* FETCH DATA */
+
+async function getData(){
+
+let res = await fetch(
+"http://localhost/Chronology/fetch_data.php"
+);
+
+return await res.json();
+
+}
+
+/* INTENSITY */
+
+function intensityLevel(percent){
+
+percent = Number(percent);
+
+if(percent < 30){
+
+return{
+text:"LOW 🟢",
+className:"lowBtn"
+};
+
+}
+
+else if(percent >= 30 && percent <= 60){
+
+return{
+text:"MODERATE 🟡",
+className:"moderateBtn"
+};
+
+}
+
+else{
+
+return{
+text:"HIGH 🔴",
+className:"highBtn"
+};
+
+}
+
+}
+
+/* SEARCH */
+
+async function searchCrime(){
+
+let inputId = document.getElementById("crimeId")
+.value
+.trim()
+.toLowerCase();
+
+if(!inputId){
+
+alert("Enter Crime ID ❌");
+return;
+
+}
+
+let data = await getData();
+
+let record = null;
+
+/* FIND RECORD */
+
+for(let i=0;i<data.length;i++){
+
+let dbId = String(
+data[i].crime_id || data[i].id || ""
+)
+.toLowerCase()
+.trim();
+
+if(dbId === inputId){
+
+record = data[i];
+break;
+
+}
+
+}
+
+/* NOT FOUND */
+
+if(!record){
+
+alert("Crime ID Not Found ❌");
+return;
+
+}
+
+/* RECORD DISPLAY */
+
+document.getElementById("record").innerHTML = `
+
+ID : ${record.crime_id}<br><br>
+
+Location : ${record.location}<br><br>
+
+Crime Type : ${record.crime_type}<br><br>
+
+Date : ${record.date}<br><br>
+
+Year : ${record.year}<br><br>
+
+Start Time : ${record.start_time}<br><br>
+
+End Time : ${record.end_time}<br><br>
+
+Crime Count : ${record.crime_count}
+
+`;
+
+/* LOCATION ANALYSIS */
+
+let locationMap = {};
+
+data.forEach(c=>{
+
+let loc = c.location || "Unknown";
+
+if(!locationMap[loc]){
+
+locationMap[loc] = 0;
+
+}
+
+locationMap[loc] += Number(c.crime_count || 0);
+
+});
+
+let maxLocationCrime = Math.max(
+...Object.values(locationMap)
+);
+
+let locTotal = locationMap[record.location] || 0;
+
+let locPercent = (
+(locTotal / maxLocationCrime) * 100
+).toFixed(2);
+
+let locLevel = intensityLevel(locPercent);
+
+document.getElementById("loc").innerHTML = `
+
+<b>${record.location}</b><br><br>
+
+Crime Count : ${locTotal}<br><br>
+
+Intensity : ${locPercent}%
+
+`;
+
+let locBtn = document.getElementById("locBtn");
+
+locBtn.innerText = locLevel.text;
+
+locBtn.className =
+"levelBtn " + locLevel.className;
+
+/* TIME ANALYSIS */
+
+let currentTime =
+record.start_time + " - " + record.end_time;
+
+let timeMap = {};
+
+data.forEach(c=>{
+
+let t =
+(c.start_time || "00:00:00")
++
+" - "
++
+(c.end_time || "00:00:00");
+
+if(!timeMap[t]){
+
+timeMap[t] = 0;
+
+}
+
+timeMap[t] += Number(c.crime_count || 0);
+
+});
+
+let maxTimeCrime = Math.max(
+...Object.values(timeMap)
+);
+
+let timeTotal = timeMap[currentTime] || 0;
+
+let timePercent = (
+(timeTotal / maxTimeCrime) * 100
+).toFixed(2);
+
+let timeLevel = intensityLevel(timePercent);
+
+document.getElementById("time").innerHTML = `
+
+<b>${currentTime}</b><br><br>
+
+Crime Count : ${timeTotal}<br><br>
+
+Intensity : ${timePercent}%
+
+`;
+
+let timeBtn = document.getElementById("timeBtn");
+
+timeBtn.innerText = timeLevel.text;
+
+timeBtn.className =
+"levelBtn " + timeLevel.className;
+
+/* CRIME TYPE */
+
+let typeMap = {};
+
+data.forEach(c=>{
+
+let type = c.crime_type || "Unknown";
+
+if(!typeMap[type]){
+
+typeMap[type] = 0;
+
+}
+
+typeMap[type] += Number(c.crime_count || 0);
+
+});
+
+let maxTypeCrime = Math.max(
+...Object.values(typeMap)
+);
+
+let typeTotal =
+typeMap[record.crime_type] || 0;
+
+let typePercent = (
+(typeTotal / maxTypeCrime) * 100
+).toFixed(2);
+
+let typeLevel =
+intensityLevel(typePercent);
+
+document.getElementById(
+"crimeIntensityText"
+).innerHTML = `
+
+Crime Type : <b>${record.crime_type}</b><br><br>
+
+Crime Count : <b>${typeTotal}</b><br><br>
+
+Intensity : <b>${typePercent}%</b>
+
+`;
+
+let crimeBtn =
+document.getElementById(
+"crimeIntensityBtn"
+);
+
+crimeBtn.innerText =
+typeLevel.text;
+
+crimeBtn.className =
+"levelBtn " + typeLevel.className;
+
+/* GRAPH DATA */
+
+let labels = [
+"Location",
+"Time"
+];
+
+let values = [
+locTotal,
+timeTotal
+];
+
+/* COMMON LAYOUT */
+
+let layoutCommon = {
+
+paper_bgcolor:"#111827",
+
+plot_bgcolor:"#111827",
+
+font:{
+color:"white",
+size:14
+},
+
+xaxis:{
+title:"Crime Categories",
+gridcolor:"#444"
+},
+
+yaxis:{
+title:"Crime Count",
+gridcolor:"#444"
+}
+
+};
+
+/* BAR */
+
+Plotly.newPlot("bar",[{
+
+x:labels,
+y:values,
+type:"bar",
+
+marker:{
+color:["#ff3c3c","#00ffcc"]
+},
+
+text:values,
+textposition:"outside"
+
+}],{
+
+...layoutCommon,
+title:"Bar Graph"
+
+});
+
+/* PIE */
+
+Plotly.newPlot("pie",[{
+
+labels:labels,
+values:values,
+type:"pie",
+
+marker:{
+colors:["#ff3c3c","#00ffcc"]
+},
+
+textinfo:"label+percent"
+
+}],{
+
+...layoutCommon,
+title:"Pie Chart"
+
+});
+
+/* DONUT */
+
+Plotly.newPlot("donut",[{
+
+labels:labels,
+values:values,
+type:"pie",
+hole:0.5,
+
+marker:{
+colors:["#ffaa00","#00ff66"]
+},
+
+textinfo:"label+percent"
+
+}],{
+
+...layoutCommon,
+title:"Donut Chart"
+
+});
+
+/* LINE */
+
+Plotly.newPlot("line",[{
+
+x:labels,
+y:values,
+
+type:"scatter",
+
+mode:"lines+markers+text",
+
+text:values,
+
+line:{
+color:"#00ffff",
+width:4
+},
+
+marker:{
+size:14,
+color:["red","yellow"]
+}
+
+}],{
+
+...layoutCommon,
+title:"Line Graph"
+
+});
+
+/* AREA */
+
+Plotly.newPlot("area",[{
+
+x:labels,
+y:values,
+
+type:"scatter",
+
+fill:"tozeroy",
+
+mode:"lines+markers+text",
+
+text:values,
+
+line:{
+color:"#00ff99",
+width:4
+},
+
+marker:{
+size:12,
+color:["#00ff99","#00ccff"]
+}
+
+}],{
+
+...layoutCommon,
+title:"Area Graph"
+
+});
+
+/* SCATTER */
+
+Plotly.newPlot("scatter",[{
+
+x:labels,
+y:values,
+
+mode:"markers+text",
+
+text:values,
+
+textposition:"top center",
+
+marker:{
+size:[40,40],
+color:["#ff0000","#00ffcc"]
+}
+
+}],{
+
+...layoutCommon,
+title:"Scatter Plot"
+
+});
+
+/* BUBBLE */
+
+Plotly.newPlot("bubble",[{
+
+x:labels,
+y:values,
+
+mode:"markers+text",
+
+text:values,
+
+textposition:"top center",
+
+marker:{
+
+size:values.map(v=>Math.max(v*3,40)),
+
+color:["#ff3c3c","#00ff99"],
+
+opacity:0.8
+
+}
+
+}],{
+
+...layoutCommon,
+title:"Bubble Chart"
+
+});
+
+/* BOX */
+
+Plotly.newPlot("box",[{
+
+y:values,
+type:"box",
+
+marker:{
+color:"#ffcc00"
+}
+
+}],{
+
+...layoutCommon,
+title:"Box Plot"
+
+});
+
+/* HEAT */
+
+Plotly.newPlot("heat",[{
+
+z:[values],
+type:"heatmap",
+colorscale:"Jet"
+
+}],{
+
+...layoutCommon,
+title:"Heat Map"
+
+});
+
+/* CONTOUR */
+
+Plotly.newPlot("contour",[{
+
+z:[values],
+type:"contour",
+colorscale:"Rainbow"
+
+}],{
+
+...layoutCommon,
+title:"Contour Graph"
+
+});
+
+/* HISTOGRAM */
+
+Plotly.newPlot("hist",[{
+
+x:values,
+type:"histogram",
+
+marker:{
+color:"#00ccff"
+}
+
+}],{
+
+...layoutCommon,
+title:"Histogram"
+
+});
+
+/* STACK */
+
+Plotly.newPlot("stack",[{
+
+x:labels,
+y:values,
+type:"bar",
+
+marker:{
+color:["#ff0000","#ffff00"]
+}
+
+}],{
+
+...layoutCommon,
+title:"Stack Graph"
+
+});
+
+}
+
+/* NEXT */
+
+function goNext(){
+
+window.location.href =
+"Overall_analysis.html";
+
+}
+
+</script>
+
+</body>
+</html>

@@ -1,0 +1,196 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Criminology Analysis</title>
+
+<style>
+
+/* RESET */
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:Segoe UI;
+}
+
+/* BODY */
+body{
+height:100vh;
+background:
+linear-gradient(rgba(0,0,0,0.85), rgba(0,0,0,0.95)),
+url("crime.jpg") no-repeat center/cover;
+display:flex;
+justify-content:center;
+align-items:center;
+color:white;
+}
+
+/* CONTAINER */
+.container{
+width:380px;
+background:rgba(255,255,255,0.05);
+padding:30px;
+border-radius:10px;
+backdrop-filter:blur(10px);
+box-shadow:0 0 20px rgba(255,0,0,0.3);
+animation:fade 1s ease;
+}
+
+/* HEADER */
+.header{
+text-align:center;
+margin-bottom:20px;
+}
+
+.header h1{
+color:#ff3c3c;
+font-size:28px;
+}
+
+.header p{
+color:#aaa;
+font-size:14px;
+}
+
+/* INPUT GROUP */
+.input-group{
+margin-bottom:15px;
+}
+
+label{
+font-size:13px;
+color:#ccc;
+}
+
+input{
+width:100%;
+padding:10px;
+margin-top:5px;
+background:#111;
+border:1px solid #444;
+color:white;
+border-radius:5px;
+}
+
+/* BUTTON */
+button{
+width:100%;
+padding:12px;
+background:#111;
+color:white;
+border:1px solid red;
+cursor:pointer;
+border-radius:5px;
+transition:0.3s;
+}
+
+button:hover{
+background:red;
+}
+
+/* ERROR */
+.error{
+color:red;
+font-size:12px;
+margin-top:5px;
+}
+
+/* FOOTER */
+.footer{
+text-align:center;
+margin-top:15px;
+font-size:12px;
+color:#777;
+}
+
+/* ANIMATION */
+@keyframes fade{
+from{
+opacity:0;
+transform:translateY(20px);
+}
+to{
+opacity:1;
+transform:translateY(0);
+}
+}
+
+</style>
+</head>
+
+<body>
+
+<div class="container">
+
+<div class="header">
+<h1>Crime Chronology</h1>
+<p>Secure Access Portal</p>
+</div>
+
+<!-- LOGIN FORM -->
+
+<div class="input-group">
+<label>Username</label>
+<input id="username" type="text" placeholder="Enter Username">
+</div>
+
+<div class="input-group">
+<label>Password</label>
+<input id="password" type="password" placeholder="Enter Password">
+</div>
+
+<div class="error" id="errorMsg"></div>
+
+<button onclick="login()">Login</button>
+
+<div class="footer">
+Authorized Access Only | Crime Monitoring System
+</div>
+
+</div>
+
+<script>
+
+/* LOGIN FUNCTION */
+function login(){
+
+let user = document.getElementById("username").value;
+let pass = document.getElementById("password").value;
+let error = document.getElementById("errorMsg");
+
+/* CLEAR ERROR */
+error.innerHTML = "";
+
+/* VALIDATION */
+if(user === "" || pass === ""){
+error.innerHTML = "Please fill all fields";
+return;
+}
+
+/* CREDENTIAL CHECK */
+if(user === "Srushti_Crime-Chronology" && pass === "Srushti@Chrono_133"){
+
+alert("Login Successful");
+
+/* REDIRECT */
+window.location.href = "main_dashboard.html";
+
+}
+else{
+error.innerHTML = "Invalid Username or Password";
+}
+
+}
+
+/* ENTER KEY SUPPORT */
+document.addEventListener("keypress", function(e){
+if(e.key === "Enter"){
+login();
+}
+});
+
+</script>
+
+</body>
+</html>

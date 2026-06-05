@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>AI Crime Alert System</title>
+
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+<style>
+body{
+background:#05070d;
+color:white;
+font-family:Segoe UI;
+margin:0;
+text-align:center;
+overflow-x:hidden;
+}
+
+h1{
+color:#ff2e2e;
+padding:15px;
+}
+
+/* ALERT BUTTON */
+.alert-btn{
+font-size:34px;
+padding:25px 60px;
+background:red;
+color:white;
+border:none;
+border-radius:12px;
+cursor:pointer;
+animation:pulse 1s infinite;
+box-shadow:0 0 30px red;
+margin:20px;
+}
+
+@keyframes pulse{
+0%{transform:scale(1);}
+50%{transform:scale(1.1);}
+100%{transform:scale(1);}
+}
+
+/* FLASH SCREEN */
+.flash{
+position:fixed;
+top:0;
+left:0;
+width:100%;
+height:100%;
+background:red;
+opacity:0;
+pointer-events:none;
+z-index:999;
+animation:flashAnim 1s infinite;
+}
+
+@keyframes flashAnim{
+0%{opacity:0;}
+50%{opacity:0.3;}
+100%{opacity:0;}
+}
+
+/* PANEL */
+.panel{
+background:#0f172a;
+margin:15px;
+padding:20px;
+border-radius:10px;
+font-size:20px;
+}
+
+.cards{
+display:grid;
+grid-template-columns:repeat(3,1fr);
+gap:10px;
+padding:10px;
+}
+
+.card{
+background:#111827;
+padding:20px;
+border-radius:8px;
+font-size:18px;
+}
+
+.grid{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:10px;
+padding:10px;
+}
+
+.graph{
+background:#111827;
+height:380px;
+border-radius:8px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="flash" class="flash"></div>
+
+<h1>🚨 AI Crime Prediction & Alert System</h1>
+
+<button class="alert-btn" onclick="startAlert()">🚨 EMERGENCY ALERT 🚨</button>
+
+<div class="panel" id="alertBox">
+Analyzing crime data...
+</div>
+
+<div class="cards">
+
+<div class="card">
+📍 Location: <span id="loc"></span><br><br>
+📊 Location Intensity:
+<span id="locIntensity"></span>
+</div>
+
+<div class="card">
+⏰ Time: <span id="time"></span><br><br>
+📊 Time Intensity:
+<span id="timeIntensity"></span>
+</div>
+
+<div class="card">
+⚠ Risk: <span id="risk"></span>
+</div>
+
+</div>
+
+<div class="cards">
+<div class="card">📅 Date: <span id="date"></span></div>
+<div class="card">🎯 Confidence: <span id="conf"></span></div>
+<div class="card">🧠 Pattern: Hotspot Detection</div>
+</div>
+
+<div class="grid">
+
+<div id="bar" class="graph"></div>
+<div id="pie" class="graph"></div>
+<div id="line" class="graph"></div>
+<div id="heat" class="graph"></div>
+<div id="scatter" class="graph"></div>
+<div id="area" class="graph"></div>
+
+<!-- FINAL GRAPH -->
+<div id="alertGraph" class="graph"></div>
+
+</div>
+
+<audio id="siren" loop>
+<source src="https://www.soundjay.com/police/police-siren-01.mp3">
+</audio>
+
+<script>
+
+let userActivated = false;
+
+let bestLoc="", bestTime="", riskText="";
+
+document.body.addEventListener("click", ()=>{
+userActivated = true;
+});
+
+function formatTime(t){
+
+if(!t) return "Not Available";
+
+return t;
+
+}
+
+async function getData(){
+
+let res = await fetch("http://localhost/Chronology/fetch_data.php");
+
+return await res.json();
+
+}
+
+function getLevel(percent){
+
+if(percent < 30){
+
+return "<span style='color:#00ff00;font-weight:bold;'>LOW 🟢</span>";
+
+}
+
+else if(percent >=30 && percent <=60){
+
+return "<span style='color:yellow;font-weight:bold;'>MODERATE 🟡</span>";
+
+}
+
+else{
+
+return "<span style='color:red;font-weight:bold;'>HIGH 🔴</span>";
+
+}
+
+}
+
+function startAlert(){
+
+if(!userActivated){
+
+alert("Click anywhere first, then press ALERT 🔊");
+
+return;
+
+}
+
+let siren = document.getElementById("siren");
+
+siren.currentTime = 0;
+
+siren.play();
+
+document.getElementById("flash").style.display="block";
+
+let msg = new SpeechSynthesisUtterance(
+"Warning! High crime risk detected in " + bestLoc +
+" at " + formatTime(bestTime)
+);
+
+speechSynthesis.speak(msg);
+
+}
+
+async function predict(){
+
+let data = await getData();
+
+let locData={}, timeData={};
+
+data.forEach(c=>{
+
+let loc = c.location || "Unknown";
+
+let time = (c.start_time && c.end_time)
+? `${c.start_time} - ${c.end_time}`
+: (c.time || "Unknown");
+
+let count = Number(c.crime_count || 0);
+
+locData[loc]=(locData[loc]||0)+count;
+
+timeData[time]=(timeData[time]||0)+count;
+
+});
+
+/* MAX */
+
+let maxLocCrime=Math.max(...Object.values(locData));
+
+let maxTimeCrime=Math.max(...Object.values(timeData));
+
+bestLoc = Object.keys(locData)
+.reduce((a,b)=>locData[a]>locData[b]?a:b);
+
+bestTime = Object.keys(timeData)
+.reduce((a,b)=>timeData[a]>timeData[b]?a:b);
+
+/* LOCATION INTENSITY */
+
+let locPercent = (
+(locData[bestLoc]/maxLocCrime)*100
+).toFixed(2);
+
+/* TIME INTENSITY */
+
+let timePercent = (
+(timeData[bestTime]/maxTimeCrime)*100
+).toFixed(2);
+
+riskText = locPercent>60
+?"HIGH 🔴"
+:locPercent>30
+?"MODERATE 🟡"
+:"LOW 🟢";
+
+let conf = Math.min(
+100,
+Math.floor((locData[bestLoc]/maxLocCrime)*100)
+)+"%";
+
+let d = new Date();
+
+d.setDate(d.getDate()+1);
+
+document.getElementById("loc").innerText = bestLoc;
+
+document.getElementById("time").innerText =
+formatTime(bestTime);
+
+document.getElementById("risk").innerText = riskText;
+
+document.getElementById("date").innerText =
+d.toDateString();
+
+document.getElementById("conf").innerText = conf;
+
+/* SHOW INTENSITY */
+
+document.getElementById("locIntensity").innerHTML =
+`${locPercent}% - ${getLevel(locPercent)}`;
+
+document.getElementById("timeIntensity").innerHTML =
+`${timePercent}% - ${getLevel(timePercent)}`;
+
+/* GRAPH DATA */
+
+let labels = Object.keys(locData);
+
+let values = Object.values(locData);
+
+let tLabels = Object.keys(timeData);
+
+let tValues = Object.values(timeData);
+
+/* COLORS */
+
+let colors=[
+"#ff4d4d",
+"#ffa500",
+"#ffff00",
+"#00ff00",
+"#00ccff",
+"#ff00ff",
+"#00ffff",
+"#ff6666"
+];
+
+let layout={
+
+paper_bgcolor:"#111827",
+
+plot_bgcolor:"#111827",
+
+font:{color:"white"},
+
+xaxis:{
+title:"Locations",
+gridcolor:"#444"
+},
+
+yaxis:{
+title:"Crime Count",
+gridcolor:"#444"
+}
+
+};
+
+/* BAR */
+
+Plotly.newPlot("bar",[{
+
+x:labels,
+y:values,
+type:"bar",
+
+marker:{
+color:colors
+},
+
+text:values,
+textposition:"outside"
+
+}],{
+
+...layout,
+
+title:"Crime Count by Location"
+
+});
+
+/* PIE */
+
+Plotly.newPlot("pie",[{
+
+labels:labels,
+
+values:values,
+
+type:"pie",
+
+marker:{
+colors:colors
+},
+
+textinfo:"label+percent"
+
+}],{
+
+paper_bgcolor:"#111827",
+
+font:{color:"white"},
+
+title:"Crime Distribution"
+
+});
+
+/* LINE */
+
+Plotly.newPlot("line",[{
+
+x:tLabels,
+
+y:tValues,
+
+type:"scatter",
+
+mode:"lines+markers+text",
+
+text:tValues,
+
+line:{
+color:"#00ffff",
+width:4
+},
+
+marker:{
+size:12,
+color:tLabels.map((_,i)=>colors[i%colors.length])
+}
+
+}],{
+
+...layout,
+
+title:"Crime Time Trend"
+
+});
+
+/* HEATMAP */
+
+Plotly.newPlot("heat",[{
+
+z:[values],
+
+type:"heatmap",
+
+colorscale:"Jet"
+
+}],{
+
+paper_bgcolor:"#111827",
+
+font:{color:"white"},
+
+title:"Crime Heatmap"
+
+});
+
+/* SCATTER */
+
+Plotly.newPlot("scatter",[{
+
+x:labels,
+
+y:values,
+
+mode:"markers+text",
+
+text:values,
+
+textposition:"top center",
+
+marker:{
+
+size:20,
+
+color:labels.map((_,i)=>colors[i%colors.length]),
+
+line:{
+color:"#fff",
+width:2
+}
+
+}
+
+}],{
+
+...layout,
+
+title:"Scatter Plot Analysis"
+
+});
+
+/* AREA */
+
+Plotly.newPlot("area",[{
+
+x:tLabels,
+
+y:tValues,
+
+fill:"tozeroy",
+
+type:"scatter",
+
+mode:"lines+markers+text",
+
+text:tValues,
+
+line:{
+color:"#00ff99",
+width:4
+},
+
+marker:{
+size:12,
+color:tLabels.map((_,i)=>colors[i%colors.length])
+}
+
+}],{
+
+...layout,
+
+title:"Area Chart Analysis"
+
+});
+
+/* FINAL ALERT GRAPH */
+
+let low=[], moderate=[], high=[];
+
+labels.forEach((l,i)=>{
+
+let v = values[i];
+
+low.push(v<=10?v:null);
+
+moderate.push(v>10 && v<=20?v:null);
+
+high.push(v>20?v:null);
+
+});
+
+let maxY = Math.max(...values) + 5;
+
+Plotly.newPlot("alertGraph",[
+
+{
+x:labels,
+y:low,
+type:"bar",
+name:"Low Risk",
+marker:{color:"#00c853"}
+},
+
+{
+x:labels,
+y:moderate,
+type:"bar",
+name:"Moderate Risk",
+marker:{color:"#ffb300"}
+},
+
+{
+x:labels,
+y:high,
+type:"bar",
+name:"High Risk",
+marker:{color:"#ff2b2b"}
+},
+
+{
+x:labels,
+y:values,
+type:"scatter",
+mode:"lines+markers",
+name:"Crime Trend",
+
+line:{
+color:"white",
+width:3
+},
+
+marker:{
+size:10,
+color:labels.map((_,i)=>colors[i%colors.length])
+}
+
+}
+
+],{
+
+title:{
+text:"Crime Intensity Analysis Dashboard",
+font:{size:20,color:"white"}
+},
+
+paper_bgcolor:"#111827",
+
+plot_bgcolor:"#111827",
+
+xaxis:{
+title:"📍 Locations",
+tickangle:-45
+},
+
+yaxis:{
+title:"⚠ Crime Count",
+range:[0,maxY]
+},
+
+legend:{
+orientation:"h",
+x:0,
+y:1.15
+},
+
+font:{color:"white"}
+
+});
+
+}
+
+predict();
+
+</script>
+
+</body>
+</html>

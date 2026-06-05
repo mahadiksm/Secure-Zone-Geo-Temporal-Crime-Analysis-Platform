@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Advanced Crime Analysis</title>
+
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+
+<style>
+body{
+background:#0b0f1a;
+color:white;
+font-family:Segoe UI;
+margin:0;
+}
+
+h1{
+text-align:center;
+color:#ff3c3c;
+padding:15px;
+}
+
+.controls{
+text-align:center;
+margin:15px;
+}
+
+input{
+padding:10px;
+background:#1f2937;
+color:white;
+border:1px solid #555;
+}
+
+button{
+padding:10px 20px;
+background:red;
+border:none;
+color:white;
+cursor:pointer;
+}
+
+.cards{
+display:grid;
+grid-template-columns:repeat(4,1fr);
+gap:10px;
+padding:10px;
+}
+
+.card{
+background:#111827;
+padding:15px;
+text-align:center;
+border-radius:8px;
+}
+
+#map{
+height:400px;
+border-radius:8px;
+margin:15px;
+}
+
+.grid{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:10px;
+padding:10px;
+}
+
+.graph{
+background:#111827;
+padding:10px;
+border-radius:8px;
+height:400px;
+}
+
+.nextBtn{
+display:block;
+margin:30px auto;
+padding:14px;
+background:green;
+color:white;
+border:none;
+border-radius:6px;
+cursor:pointer;
+}
+</style>
+</head>
+
+<body>
+
+<h1>Crime Location Analysis</h1>
+
+<div class="controls">
+<input id="location" placeholder="Enter location (pune)">
+<button onclick="analyze()">Analyze</button>
+</div>
+
+<div class="cards">
+<div class="card">Location<br><span id="loc">-</span></div>
+<div class="card">Total Crime<br><span id="total">0</span></div>
+<div class="card">Intensity<br><span id="intensity">-</span></div>
+<div class="card">Records<br><span id="records">0</span></div>
+</div>
+
+<div id="map"></div>
+
+<div class="grid">
+<div id="bar" class="graph"></div>
+<div id="hbar" class="graph"></div>
+<div id="pie" class="graph"></div>
+<div id="donut" class="graph"></div>
+<div id="heatmap" class="graph"></div>
+<div id="scatter" class="graph"></div>
+<div id="bubble" class="graph"></div>
+<div id="hist" class="graph"></div>
+<div id="box" class="graph"></div>
+<div id="violin" class="graph"></div>
+<div id="funnel" class="graph"></div>
+<div id="radar" class="graph"></div>
+</div>
+
+<button class="nextBtn" onclick="goNext()">Next → Overall Analysis</button>
+
+<script>
+
+let map;
+
+async function getData(){
+let res = await fetch("http://localhost/Chronology/fetch_data.php");
+return await res.json();
+}
+
+async function analyze(){
+
+let loc = document.getElementById("location").value.toLowerCase().trim();
+
+if(!loc){ alert("Enter location"); return; }
+
+let data = await getData();
+
+let filtered = data.filter(c => (c.location || "").toLowerCase().trim() === loc);
+
+if(filtered.length===0){ alert("No Data Found ❌"); return; }
+
+/* TOTAL */
+let total = filtered.reduce((s,c)=> s + Number(c.crime_count),0);
+
+/* INTENSITY */
+let intensity = total>20 ? "High" : total>10 ? "Moderate" : "Low";
+
+/* COLOR */
+let gpsColor = intensity==="High" ? "red" : intensity==="Moderate" ? "yellow" : "green";
+
+/* UI */
+document.getElementById("loc").innerText = loc;
+document.getElementById("total").innerText = total;
+document.getElementById("intensity").innerText = intensity;
+document.getElementById("records").innerText = filtered.length;
+
+/* GROUP */
+let typeData={}, yearData={};
+
+filtered.forEach(c=>{
+let t=c.crime_type||"Other";
+typeData[t]=(typeData[t]||0)+Number(c.crime_count);
+
+let y=c.year||"Unknown";
+yearData[y]=(yearData[y]||0)+Number(c.crime_count);
+});
+
+let labels=Object.keys(typeData);
+let values=Object.values(typeData);
+
+let years=Object.keys(yearData);
+let yearVals=Object.values(yearData);
+
+/* HEATMAP MATRIX */
+let zValues = years.map(y=>{
+return labels.map(l=>{
+return filtered
+.filter(c=>c.year==y && c.crime_type==l)
+.reduce((s,c)=>s+Number(c.crime_count),0);
+});
+});
+
+/* COMMON */
+let layout={
+paper_bgcolor:"#111827",
+plot_bgcolor:"#111827",
+font:{color:"white"}
+};
+
+/* BAR */
+Plotly.newPlot("bar",[{
+x:labels,
+y:values,
+type:"bar",
+marker:{color:values, colorscale:"Reds", showscale:true, colorbar:{title:"Crime Intensity"}}
+}],{...layout,title:"Crime Type vs Count",xaxis:{title:"Crime Type"},yaxis:{title:"Count"}});
+
+/* HBAR */
+Plotly.newPlot("hbar",[{
+y:labels,
+x:values,
+type:"bar",
+orientation:"h",
+marker:{color:values, colorscale:"Blues", showscale:true}
+}],{...layout,title:"Horizontal Crime Comparison",xaxis:{title:"Count"},yaxis:{title:"Crime Type"}});
+
+/* PIE */
+Plotly.newPlot("pie",[{
+labels:labels,
+values:values,
+type:"pie"
+}],{...layout,title:"Crime Share (%)"});
+
+/* DONUT */
+Plotly.newPlot("donut",[{
+labels:labels,
+values:values,
+hole:0.4,
+type:"pie"
+}],{...layout,title:"Donut Distribution"});
+
+/* HEATMAP */
+Plotly.newPlot("heatmap",[{
+z:zValues,
+x:labels,
+y:years,
+type:"heatmap",
+colorscale:"YlOrRd",
+colorbar:{title:"Crime Density"}
+}],{...layout,title:"Location vs Year Heatmap",xaxis:{title:"Crime Type"},yaxis:{title:"Year"}});
+
+/* SCATTER (Location vs Count) */
+Plotly.newPlot("scatter",[{
+x:labels,
+y:values,
+mode:"markers",
+marker:{size:12,color:values,colorscale:"Viridis",showscale:true}
+}],{...layout,title:"Crime Type Scatter",xaxis:{title:"Crime Type"},yaxis:{title:"Count"}});
+
+/* BUBBLE */
+Plotly.newPlot("bubble",[{
+x:labels,
+y:values,
+mode:"markers",
+marker:{size:values.map(v=>v*5),color:values,colorscale:"Jet",showscale:true}
+}],{...layout,title:"Bubble Crime View",xaxis:{title:"Crime Type"},yaxis:{title:"Count"}});
+
+/* HIST */
+Plotly.newPlot("hist",[{
+x:values,
+type:"histogram",
+marker:{color:"#ff4d4d"}
+}],{...layout,title:"Crime Distribution Histogram",xaxis:{title:"Crime Count"},yaxis:{title:"Frequency"}});
+
+/* BOX */
+Plotly.newPlot("box",[{
+y:values,
+type:"box",
+marker:{
+color:values,
+colorscale:"Bluered",
+showscale:true
+},
+line:{color:"#ffffff"}
+}],{
+...layout,
+title:"Box Plot (Crime Spread)",
+yaxis:{title:"Crime Count"}
+});
+
+/* VIOLIN */
+Plotly.newPlot("violin",[{
+y:values,
+type:"violin",
+points:"all",
+jitter:0.3,
+marker:{
+color:values,
+colorscale:"Portland",
+showscale:true
+},
+line:{color:"#ffffff"}
+}],{
+...layout,
+title:"Violin Plot (Density)",
+yaxis:{title:"Crime Count"}
+});
+
+/* FUNNEL */
+/* FUNNEL - DIFFERENT COLOR FOR EACH CRIME TYPE */
+/* FUNNEL - DYNAMIC + FIXED COLOR (BACKEND CONNECTED) */
+
+/* Fixed color mapping for known crimes */
+let crimeColorMap = {
+"theft": "#ff0000",
+"harassment": "#ff9900",
+"robbery": "#cc0000",
+"assault": "#ff4d4d",
+"fraud": "#9933ff",
+"cybercrime": "#00ccff",
+"kidnapping": "#ff66cc",
+"murder": "#990000",
+"drug": "#33cc33"
+};
+
+/* Extra colors for new/unexpected crime types */
+let extraColors = [
+"#00ffff","#ffcc00","#66ff99","#ff6699",
+"#66ccff","#cc99ff","#ff9966","#99ffcc",
+"#ffccff","#ccccff"
+];
+
+let extraIndex = 0;
+
+/* Assign color dynamically */
+let funnelColors = labels.map(l => {
+let key = l.toLowerCase().trim();
+
+if(crimeColorMap[key]){
+    return crimeColorMap[key]; // known crime
+} else {
+    let color = extraColors[extraIndex % extraColors.length];
+    extraIndex++;
+    return color; // new crime type gets auto color
+}
+});
+
+Plotly.newPlot("funnel",[{
+y:labels,
+x:values,
+type:"funnel",
+marker:{
+color: funnelColors
+}
+}],{
+...layout,
+title:"Funnel Crime Analysis (Auto Color by Crime Type)",
+xaxis:{title:"Crime Count"},
+yaxis:{title:"Crime Type"}
+});
+
+/* RADAR */
+Plotly.newPlot("radar",[{
+type:"scatterpolar",
+r:values,
+theta:labels,
+fill:"toself",
+marker:{
+color:values,
+colorscale:"Rainbow",
+showscale:true
+},
+line:{
+color:"#ff4d4d",
+width:2
+}
+}],{
+...layout,
+title:"Radar Crime Pattern",
+polar:{
+radialaxis:{visible:true}
+}
+});
+
+/* MAP */
+if(map){ map.remove(); }
+
+navigator.geolocation.getCurrentPosition(pos=>{
+
+let lat=pos.coords.latitude;
+let lon=pos.coords.longitude;
+
+map=L.map('map').setView([lat,lon],14);
+
+let satellite=L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}');
+satellite.addTo(map);
+
+L.circleMarker([lat,lon],{
+radius:12,
+color:gpsColor,
+fillColor:gpsColor,
+fillOpacity:0.9
+}).addTo(map)
+.bindPopup("Your Location<br>"+intensity)
+.openPopup();
+
+},()=>{ alert("GPS denied"); });
+
+}
+
+function goNext(){
+window.location.href="Overall_Loc.html";
+}
+
+</script>
+
+</body>
+</html>

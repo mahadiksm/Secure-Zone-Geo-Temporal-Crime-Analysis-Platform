@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Crime Entry Dashboard</title>
+
+<style>
+
+*{
+margin:0;
+padding:0;
+box-sizing:border-box;
+font-family:Segoe UI;
+}
+
+body{
+background:
+linear-gradient(rgba(0,0,0,0.9),rgba(0,0,0,0.95)),
+url("crime.jpg") no-repeat center/cover;
+color:white;
+}
+
+.header{
+text-align:center;
+padding:20px;
+font-size:30px;
+color:#ff3c3c;
+}
+
+.back{
+position:absolute;
+top:15px;
+left:15px;
+padding:8px 12px;
+background:#444;
+border:none;
+color:white;
+cursor:pointer;
+}
+
+.container{
+width:90%;
+margin:20px auto;
+background:rgba(255,255,255,0.05);
+padding:20px;
+border-radius:10px;
+}
+
+.form{
+display:grid;
+grid-template-columns:repeat(4,1fr);
+gap:10px;
+}
+
+label{
+font-size:13px;
+color:#ccc;
+}
+
+input,select{
+padding:8px;
+background:#111;
+color:white;
+border:1px solid #444;
+border-radius:5px;
+width:100%;
+}
+
+#formattedDate{
+color:lightgreen;
+font-size:12px;
+}
+
+.addBtn{
+grid-column:span 4;
+padding:12px;
+background:red;
+border:none;
+color:white;
+cursor:pointer;
+margin-top:5px;
+}
+
+.addBtn:hover{
+background:darkred;
+}
+
+</style>
+</head>
+
+<body>
+
+<button class="back" onclick="goBack()">⬅ Back</button>
+
+<div class="header">
+Add Crime Data
+</div>
+
+<div class="container">
+
+<div class="form">
+
+<div>
+<label>Crime ID</label>
+<input id="crime_id">
+</div>
+
+<div>
+<label>Date</label>
+<input id="date" type="date">
+<span id="formattedDate">DD-MM-YYYY</span>
+</div>
+
+<div>
+<label>Day</label>
+<input id="day" readonly>
+</div>
+
+<div>
+<label>Month</label>
+<input id="month" readonly>
+</div>
+
+<div>
+<label>Year</label>
+<input id="year" readonly>
+</div>
+
+<div>
+<label>Start Time</label>
+<input id="start_time" type="time">
+</div>
+
+<div>
+<label>End Time</label>
+<input id="end_time" type="time">
+</div>
+
+<div>
+<label>Location</label>
+<input id="location">
+</div>
+
+<div>
+<label>Crime Type</label>
+<input id="type">
+</div>
+
+<div>
+<label>Crime Count</label>
+<input id="count" type="number" min="1">
+</div>
+
+<button class="addBtn" onclick="addCrime()">
+Add Crime
+</button>
+
+<button class="addBtn" onclick="goToDataset()">
+Go to Dataset
+</button>
+
+</div>
+
+</div>
+
+<script>
+
+/* AUTO DATE */
+
+document.getElementById("date")
+.addEventListener("change", function(){
+
+let d = new Date(this.value);
+
+let days = [
+"Sunday","Monday","Tuesday",
+"Wednesday","Thursday","Friday","Saturday"
+];
+
+let months = [
+"Jan","Feb","Mar","Apr","May","Jun",
+"Jul","Aug","Sep","Oct","Nov","Dec"
+];
+
+document.getElementById("day").value =
+days[d.getDay()];
+
+document.getElementById("month").value =
+months[d.getMonth()];
+
+document.getElementById("year").value =
+d.getFullYear();
+
+let dd =
+String(d.getDate()).padStart(2,'0');
+
+let mm =
+String(d.getMonth()+1).padStart(2,'0');
+
+let yyyy = d.getFullYear();
+
+document.getElementById("formattedDate").innerHTML =
+dd + "-" + mm + "-" + yyyy;
+
+});
+
+/* ADD CRIME */
+
+async function addCrime(){
+
+let id =
+document.getElementById("crime_id").value.trim();
+
+let dateInput =
+document.getElementById("date").value;
+
+let dayVal =
+document.getElementById("day").value;
+
+let monthVal =
+document.getElementById("month").value;
+
+let yearVal =
+document.getElementById("year").value;
+
+let startTimeVal =
+document.getElementById("start_time").value;
+
+let endTimeVal =
+document.getElementById("end_time").value;
+
+let locationVal =
+document.getElementById("location").value.trim();
+
+let typeVal =
+document.getElementById("type").value.trim();
+
+let countVal =
+document.getElementById("count").value;
+
+/* VALIDATION */
+
+if(
+!id ||
+!dateInput ||
+!startTimeVal ||
+!endTimeVal ||
+!locationVal ||
+!typeVal ||
+!countVal
+){
+
+alert("Fill all required fields ❌");
+
+return;
+
+}
+
+/* SAVE MYSQL */
+
+let res = await fetch(
+"http://localhost/Chronology/add_crime.php",
+{
+
+method:"POST",
+
+headers:{
+"Content-Type":"application/json"
+},
+
+body: JSON.stringify({
+
+crime_id:id,
+date:dateInput,
+day:dayVal,
+month:monthVal,
+year:yearVal,
+start_time:startTimeVal,
+end_time:endTimeVal,
+location:locationVal,
+crime_type:typeVal,
+crime_count:countVal
+
+})
+
+});
+
+let result = await res.text();
+
+console.log(result);
+
+if(result.includes("Success")){
+
+alert("Crime Added Successfully ✅");
+
+}else{
+
+alert("Database Error ❌ : " + result);
+
+}
+
+/* CLEAR FORM */
+
+document.getElementById("crime_id").value="";
+document.getElementById("date").value="";
+document.getElementById("day").value="";
+document.getElementById("month").value="";
+document.getElementById("year").value="";
+document.getElementById("start_time").value="";
+document.getElementById("end_time").value="";
+document.getElementById("location").value="";
+document.getElementById("type").value="";
+document.getElementById("count").value="";
+
+document.getElementById("formattedDate").innerHTML =
+"DD-MM-YYYY";
+
+}
+
+/* NAVIGATION */
+
+function goToDataset(){
+
+window.location.href = "dataset.html";
+
+}
+
+function goBack(){
+
+window.location.href = "main_dashboard.html";
+
+}
+
+</script>
+
+</body>
+</html>

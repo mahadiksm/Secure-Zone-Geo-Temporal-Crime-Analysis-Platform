@@ -1,0 +1,296 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Overall Time Intelligence (Clean View)</title>
+
+<script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+
+<style>
+*{margin:0;padding:0;box-sizing:border-box;font-family:Segoe UI;}
+
+body{
+background:#0b0f1a;
+color:white;
+}
+
+h1{
+text-align:center;
+padding:20px;
+color:#ff3c3c;
+}
+
+.controls{
+text-align:center;
+margin:20px;
+}
+
+select,button{
+padding:10px;
+margin:5px;
+background:#111;
+color:white;
+border:1px solid #444;
+border-radius:6px;
+}
+
+button{
+background:green;
+cursor:pointer;
+}
+
+.cards{
+display:grid;
+grid-template-columns:repeat(3,1fr);
+gap:15px;
+padding:15px;
+}
+
+.card{
+background:#111827;
+padding:15px;
+border-radius:10px;
+text-align:center;
+font-weight:bold;
+}
+
+.grid{
+display:grid;
+grid-template-columns:1fr 1fr;
+gap:15px;
+padding:15px;
+}
+
+.graph{
+background:#0f172a;
+height:380px;
+border-radius:12px;
+border:1px solid #1f2937;
+}
+</style>
+</head>
+
+<body>
+
+<h1>TIME INTENSITY DASHBOARD</h1>
+
+<div class="controls">
+
+<select id="filter">
+<option value="all">ALL INTENSITY</option>
+<option value="high">HIGH 🔴</option>
+<option value="moderate">MODERATE 🟡</option>
+<option value="low">LOW 🟢</option>
+</select>
+
+<button onclick="applyFilter()">Analyze</button>
+
+</div>
+
+<!-- INTENSITY SUMMARY -->
+<div class="cards">
+<div class="card" id="lowCard">🟢 LOW<br>Loading...</div>
+<div class="card" id="midCard">🟡 MODERATE<br>Loading...</div>
+<div class="card" id="highCard">🔴 HIGH<br>Loading...</div>
+</div>
+
+<!-- GRAPHS -->
+<div class="grid">
+<div id="bar" class="graph"></div>
+<div id="line" class="graph"></div>
+<div id="area" class="graph"></div>
+<div id="scatter" class="graph"></div>
+<div id="pie" class="graph"></div>
+<div id="heat" class="graph"></div>
+</div>
+
+<script>
+
+/* FETCH */
+async function getData(){
+
+let res = await fetch("http://localhost/Chronology/fetch_data.php")
+return await res.json();
+}
+
+/* GROUP TIME */
+function group(data){
+let map={};
+
+data.forEach(c=>{
+let t=c.start_time||"00:00:00";
+let h=parseInt(t.split(":")[0]);
+let m=t.split(":")[1]||"00";
+
+let ampm=h>=12?"PM":"AM";
+h=h%12;h=h? h:12;
+
+let key=h+":"+m+" "+ampm;
+map[key]=(map[key]||0)+Number(c.crime_count);
+});
+
+return map;
+}
+
+/* INTENSITY */
+function intensity(map){
+let max=Math.max(...Object.values(map),1);
+let out={};
+
+for(let k in map){
+let p=(map[k]/max)*100;
+
+if(p<30) out[k]="low";
+else if(p<=60) out[k]="moderate";
+else out[k]="high";
+}
+return out;
+}
+
+/* GROUP IDS */
+function groupIds(data){
+let map=group(data);
+let inMap=intensity(map);
+
+let low=[],mid=[],high=[];
+
+data.forEach(c=>{
+let t=c.start_time||"00:00:00";
+let h=parseInt(t.split(":")[0]);
+let m=t.split(":")[1]||"00";
+let ampm=h>=12?"PM":"AM";
+h=h%12;h=h? h:12;
+
+let key=h+":"+m+" "+ampm;
+
+if(inMap[key]==="low") low.push(c.crime_id);
+if(inMap[key]==="moderate") mid.push(c.crime_id);
+if(inMap[key]==="high") high.push(c.crime_id);
+});
+
+return{
+low:[...new Set(low)],
+moderate:[...new Set(mid)],
+high:[...new Set(high)]
+};
+}
+
+/* APPLY */
+async function applyFilter(){
+let type=document.getElementById("filter").value;
+let data=await getData();
+render(data,type);
+}
+
+/* INIT */
+async function loadAll(){
+let data=await getData();
+render(data,"all");
+}
+
+/* MAIN */
+function render(data,type){
+
+let map=group(data);
+let inMap=intensity(map);
+
+let filtered={};
+
+for(let k in map){
+if(type==="all"||inMap[k]===type){
+filtered[k]=map[k];
+}
+}
+
+/* CARDS */
+let ids=groupIds(data);
+
+lowCard.innerHTML="🟢 LOW<br>"+(ids.low.join(", ")||"-");
+midCard.innerHTML="🟡 MODERATE<br>"+(ids.moderate.join(", ")||"-");
+highCard.innerHTML="🔴 HIGH<br>"+(ids.high.join(", ")||"-");
+
+draw(filtered);
+}
+
+/* DRAW CLEAN GRAPHS */
+function draw(map){
+
+let x=Object.keys(map);
+let y=Object.values(map);
+
+/* COLORS */
+let green="#00ff88";
+let yellow="#ffcc00";
+let red="#ff3c3c";
+
+/* BAR */
+Plotly.newPlot("bar",[{
+x,y,type:"bar",marker:{color:red}
+}],{
+title:"Crime Intensity Over Time",
+paper_bgcolor:"#0f172a",
+plot_bgcolor:"#0f172a",
+font:{color:"white"}
+});
+
+/* LINE */
+Plotly.newPlot("line",[{
+x,y,mode:"lines+markers",
+line:{color:yellow}
+}],{
+title:"Crime Trend",
+paper_bgcolor:"#0f172a",
+plot_bgcolor:"#0f172a",
+font:{color:"white"}
+});
+
+/* AREA */
+Plotly.newPlot("area",[{
+x,y,fill:"tozeroy",
+line:{color:green}
+}],{
+title:"Crime Area Flow",
+paper_bgcolor:"#0f172a",
+plot_bgcolor:"#0f172a",
+font:{color:"white"}
+});
+
+/* SCATTER */
+Plotly.newPlot("scatter",[{
+x,y,mode:"markers",
+marker:{color:red,size:10}
+}],{
+title:"Time vs Crime Spread",
+paper_bgcolor:"#0f172a",
+plot_bgcolor:"#0f172a",
+font:{color:"white"}
+});
+
+/* PIE */
+Plotly.newPlot("pie",[{
+labels:x,values:y,type:"pie",
+marker:{colors:["#00ff88","#ffcc00","#ff3c3c"]}
+}],{
+title:"Crime Distribution",
+paper_bgcolor:"#0f172a",
+font:{color:"white"}
+});
+
+/* HEATMAP */
+Plotly.newPlot("heat",[{
+z:[y],x:x,type:"heatmap",
+colorscale:"Reds"
+}],{
+title:"Time Heatmap",
+paper_bgcolor:"#0f172a",
+font:{color:"white"}
+});
+
+}
+
+loadAll();
+
+</script>
+
+</body>
+</html>
